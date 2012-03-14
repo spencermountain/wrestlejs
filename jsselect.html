@@ -1,0 +1,232 @@
+
+<html>
+<head> 
+	<style>
+	body{
+		font-family:"Helvetica","Univers","Helvetica Neue",arial,helvetica,sans-serif;
+		font-size:22px;
+		color:#808080;
+	}
+	a{color:steelblue;
+	}
+	.cooltextarea{width:100%;
+		height:100%; 
+		-moz-border-radius: 5px;
+		border-radius: 5px;
+		border:solid grey 1px ;
+	}
+
+textarea{
+color:#666;
+font-size:14px;
+-moz-border-radius: 8px; -webkit-border-radius: 8px;
+margin:5px 0px 10px 0px;
+padding:10px;
+height:75px;
+width:350px;
+border:#999 1px solid;
+font-family:"Lucida Sans Unicode", "Lucida Grande", sans-serif;
+transition: all 0.25s ease-in-out;
+-webkit-transition: all 0.25s ease-in-out;
+-moz-transition: all 0.25s ease-in-out;
+box-shadow: 0 0 5px rgba(81, 203, 238, 0);
+-webkit-box-shadow: 0 0 5px rgba(81, 203, 238, 0);
+-moz-box-shadow: 0 0 5px rgba(81, 203, 238, 0);
+}
+
+.valid{
+outline:none;
+border:#35a5e5 1px solid;
+font-family:"Lucida Sans Unicode", "Lucida Grande", sans-serif;
+box-shadow: 0 0 5px rgba(81, 203, 238, 1);
+-webkit-box-shadow: 0 0 5px rgba(81, 203, 238, 1);
+-moz-box-shadow: 0 0 5px rgba(81, 203, 238, 1);
+}
+
+
+
+	</style> 
+	<script src="http://code.jquery.com/jquery-latest.js"></script>
+	<script src="./lightbox.js"></script>
+	<script src="./jsselect.js"></script>
+	<script src="./underscore.js"></script>
+	<script src="./json2.js"></script>
+	<script>
+	$(document).ready(function(){ 
+
+
+	//	var stats={type:null, length:0, fields:[]}
+		var timeoutID = window.setTimeout(null, 80);
+
+		//event listener
+		$("#click").click(function() {
+			window.clearTimeout(timeoutID); //for fast typing
+			timeoutID = window.setTimeout(function()
+			{
+				var selector=$("#selector").val()
+				var obj=$("#json").html();
+				console.log(obj)
+				//try{
+					obj=JSON.parse(obj);
+					stats(obj);
+				//}catch(e){status('couldnt parse'); return;}
+				var matches=JSONSelect.match(selector, obj );
+				$("#data").html(matches.join('\n'))
+				console.log(matches)
+
+			})
+		})
+
+
+		var letters=["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"];
+
+		$("#tsv").click(function() {
+			var json=[];
+			var tsv=$("#json").val();
+			var tsv=tsv.split('\n');
+			for(var i in tsv){
+				var columns=tsv[i].split('\t');
+				if(columns.length > 1){
+					var obj={};
+					for(var o in columns){
+						var name=letters[o]||'whoa';
+						obj[name]=columns[o];
+					}					
+					json.push(obj);
+				}else{
+					json.push(tsv[i]);
+				}
+			}
+			$("#data").val(JSON.stringify(json,null,2));
+			console.log(tsv);
+		})
+
+
+		$("#json").focusout(function(){
+			var data=$("#json").val();
+			var stats=analyze(data);
+			console.log(stats)
+			$("#json").val(JSON.stringify(stats.obj, null, 2));
+		})
+
+
+		$("#json").keyup(function(){
+
+				var data=$(this).val();
+				var stats=analyze(data);
+				$("#stats").html('length: '+stats.length+', type: '+stats.type)
+				var html='';
+				for(var i in stats.fields){
+					html+='<div><span class="field" id="'+stats.fields[i]+'" contenteditable="true">'+stats.fields[i]+'"</span> <a href="#" onclick="clearfield('+stats.fields[i]+')"><img style="width:20px; height:20px;" src="close.jpg"/></a></div>'
+				}
+				$("#fields").html(html);
+
+				$(".field").keyup(function(){
+					var real=$(this).attr("id");
+					var newlabel=$(this).html();
+					var obj=$("#json").html();
+					obj=JSON.parse(obj);
+					for(var i in obj){
+						for(var o in obj[i]){
+							if(o==real){
+								obj[i][newlabel]=obj[i][o];
+								delete obj[i][o];
+							}
+						}
+					}					
+					$("#json").val(JSON.stringify(obj,null,2));
+				});
+
+		})
+
+
+
+		function analyze(data){
+			var stats={type:null, length:0, fields:[], obj:null}
+			//first, see if its js-nice, or raw data
+			try{
+					obj=JSON.parse(data);		
+					stats.obj=obj;	
+					$("#json").addClass('valid');
+						//see if its an array or an object
+					if(obj.length){
+						//its an array
+						stats.length=obj.length;
+						stats.type="array";
+						//see if its an array of objects
+						if(obj[0] && typeof obj[0]=="object"){	
+							stats.fields=Object.keys(obj[0]);
+						}
+					}else{
+						//its an object
+						stats.length=_.size(obj);
+						stats.type="object"
+						stats.fields=Object.keys(obj);
+					}
+			}catch(e){
+
+					$("#json").removeClass('valid');
+				//interpret it as raw data
+			//	status('couldnt parse'+data);				
+				var tsv=data.split('\n');
+				stats.length=tsv.length;
+				if(!tsv[0]){return stats;}
+				if(tsv[0].split('\t').length>1){
+					stats.type="tsv";
+					stats.fields=[];
+				}else if(tsv[0].split(',').length>1){
+					stats.type="csv";
+					stats.fields=[];
+				}
+				else{
+					stats.type="list"
+					stats.fields=[];
+				}
+			}			
+			return stats;
+		}
+
+
+
+		function status(msg){
+			$("#status").html(msg)
+		}
+
+
+
+	});
+
+function clearlabel(){
+					var obj=$("#json").html();
+					obj=JSON.parse(obj);
+					for(var i in obj){
+						for(var o in obj[i]){
+							if(o==real){
+								obj[i][newlabel]=obj[i][o];
+								delete obj[i][o];
+							}
+						}
+					}	
+}
+</script>
+</head>
+<body>
+	<span id="fields"></span>
+	<span id="status"></span>
+	<span id="stats"></span>
+	<input id="selector" value="string"/>
+	<input id="click" type="button" value="pluck"/>
+	<input id="tsv" type="button" value="tsv"/>
+	<table id="tableid" style="width:100%; height:100%;">
+		<tr>
+			<td>
+				<textarea id="json" placeholder='json here' class="cooltextarea">[{"we":34, "eeeee":"pp"},{"we":34, "eeeee":"pp2"},{"we":334, "eeeee":"pp3"}]</textarea>
+			</td>
+			<td><textarea id="data" class="cooltextarea"></textarea></td>
+		</tr>
+	</table>
+
+	<div id="results"></div>
+
+</body>
+</html>
