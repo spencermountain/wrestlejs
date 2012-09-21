@@ -46,6 +46,15 @@
 		-moz-box-shadow: 0 0 5px rgba(81, 203, 238, 1);
 	}
 
+	.invalid{
+		outline:none;
+		border:#C92655 1px solid;
+		font-family:"Lucida Sans Unicode", "Lucida Grande", sans-serif;
+		box-shadow: 0 0 5px rgba(215, 0, 0, 1);
+		-webkit-box-shadow: 0 0 5px rgba(215, 0, 0, 1);
+		-moz-box-shadow: 0 0 5px rgba(215, 0, 0, 1);
+	}
+
 	.property{
 		position:absolute;
 		z-index:4;
@@ -61,55 +70,22 @@
 	<script src="./jsselect.js"></script>
 	<script src="./underscore.js"></script>
 	<script src="./json2.js"></script>
+	<script src="./xml.js"></script>
 	<script>
 	$(document).ready(function(){
 
 
-	//	var stats={type:null, length:0, fields:[]}
-	var timeoutID = window.setTimeout(null, 80);
-
-		//event listener
-		$("#click").click(function() {
-			window.clearTimeout(timeoutID); //for fast typing
-			timeoutID = window.setTimeout(function()
-			{
-				var selector=$("#selector").val()
-				var obj=$("#json").html();
-				console.log(obj)
-				//try{
-					obj=JSON.parse(obj);
-					stats(obj);
-				//}catch(e){status('couldnt parse'); return;}
-				var matches=JSONSelect.match(selector, obj );
-				$("#data").html(matches.join('\n'))
-				console.log(matches)
-
-			})
-		})
+	// var length=0;
+	// var timeoutID = window.setInterval(function(){
+	// 	var newlength=$("#json").val().length;
+	// 	if(Math.abs(newlength-length) > 20){
+	// 		console.log('s')
+	// 		//analyze();
+	// 		length=newlength
+	// 	}
+	// }, 500);
 
 
-		var letters=["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z"];
-
-		$("#tsv").click(function() {
-			var json=[];
-			var tsv=$("#json").val();
-			var tsv=tsv.split('\n');
-			for(var i in tsv){
-				var columns=tsv[i].split('\t');
-				if(columns.length > 1){
-					var obj={};
-					for(var o in columns){
-						var name=letters[o]||'whoa';
-						obj[name]=columns[o];
-					}
-					json.push(obj);
-				}else{
-					json.push(tsv[i]);
-				}
-			}
-			$("#data").val(JSON.stringify(json,null,2));
-			console.log(tsv);
-		})
 
 
 		$("#json").focusout(function(){
@@ -123,16 +99,7 @@
 		$("#json").keyup(function(){analyze()})
 
 
-		$("#reverse").click(function(){
-			var stats=analyze();
-			if(stats.obj && stats.obj.length){
-				stats.obj=stats.obj.reverse();
-				$("#json").val(JSON.stringify(stats.obj, null, 2));
-			}
-			else{
-				alert('couldn\'t parse the data')
-			}
-		});
+
 
 
 		$("#analyse").click(function(){
@@ -178,59 +145,149 @@
 
 		function analyze(){
 			var data=$("#json").val();
+			data=data.replace(/  /,' ');
+			data=data.replace(/^\s+|\s+$/, '');
 			var stats={type:null, length:0, fields:[], obj:null}
 			//first, see if its js-nice, or raw data
 			try{
 				obj=JSON.parse(data);
 				stats.obj=obj;
+				$("#json").removeClass('invalid');
 				$("#json").addClass('valid');
-						//see if its an array or an object
+				$("#error").html('')
+						//see if its an array or an object, or json
 						if(obj.length){
-						//its an array
-						stats.length=obj.length;
-						stats.type="array";
-						//see if its an array of objects
-						if(obj[0] && typeof obj[0]=="object"){
-							stats.fields=Object.keys(obj[0]);
-						}
-					}else{
-						//its an object
-						stats.length=_.size(obj);
-						stats.type="object"
-						stats.fields=Object.keys(obj);
-					}
+								//its an array
+								stats.length=obj.length;
+								stats.type="array";
+								stats.dupes= obj.length - unique(obj).length
+								//see if its an array of objects
+								if(obj[0] && typeof obj[0]=="object"){
+									stats.fields=Object.keys(obj[0]);
+								}else{
+								handle_array(stats);
+						  	}
+							}else{
+								//its an object
+								stats.length=_.size(obj);
+								stats.type="object"
+								stats.fields=Object.keys(obj);
+							}
 				}catch(e){
-					$("#json").removeClass('valid');
-				//interpret it as raw data
-			//	status('couldnt parse'+data);
-			var tsv=data.split('\n');
-			stats.length=tsv.length;
-			if(!tsv[0]){return stats;}
-			if(tsv[0].split('\t').length>1){
-				stats.type="tsv";
-				stats.fields=[];
-			}else if(tsv[0].split(',').length>1){
-				stats.type="csv";
-				stats.fields=[];
-			}
-			else{
-				stats.type="list"
-				stats.fields=[];
-			}
-		}
 
-			//respond to the stats
-			$("#stats").html('length: '+stats.length+', type: '+stats.type)
-			addfieldlogic(stats);
+					//see if its trying to be json
+					if( !data.substr(0,1).match(/[\{\[]/) ){
+
+							//interpret it as raw data
+						$("#json").removeClass('valid');
+						var tsv=data.split('\n');
+						stats.length=tsv.length;
+						if(!tsv[0]){return stats;}
+						//try for a tsv or csv
+						if(tsv[0].split('\t').length>1){
+							stats.type="tsv";
+							stats.fields=[];
+						}else if(tsv[0].split(',').length>1){
+							stats.type="csv";
+							stats.fields=[];
+						}
+						else{
+							//raw list
+							stats.type="list"
+							stats.fields=[];
+						}
+						$("#json").val(JSON.stringify(tsv,null,2));
+						analyze()//recursive
+					 }else{
+					 	//invalid json
+					 	console.log('death')
+					 	console.log(e.type)
+					 	$("#json").removeClass('valid');
+					 	$("#json").addClass('invalid');
+					 	$("#error").html(e.type)
+					 }
+					}
+
+
+		//	addfieldlogic(stats);
 
 		return stats;
 	}
 
 
 
-	function status(msg){
-		$("#status").html(msg)
+
+
+	function handle_array(stats){
+			//render the stats
+			$("#stats").html('length: '+stats.length+', type: '+stats.type)
+			$("#length").html('<span style="font-size:10px;">length of</span> <b style="font-size:30px;">'+stats.length+'</b>')
+			$("#dupes").html('<b style="font-size:30px;">'+stats.dupes+'</b><span style="font-size:10px;">duplicates</span> ')
+
+				//render interactions
+			var html='<input id="reverse" type="button" value="reverse"/>'
+			+'<input id="unique" type="button" value="unique"/>'
+			+'<input id="map" type="button" value="map"/>'
+			+'<input id="topk" type="button" value="topk"/>'
+			$("#buttons").html(html)
+
+		$("#reverse").click(function(){
+			var stats=analyze();
+			if(stats.obj && stats.obj.length){
+				stats.obj=stats.obj.reverse();
+				$("#json").val(JSON.stringify(stats.obj, null, 2));
+				analyze()
+			}
+			else{
+				alert('couldn\'t parse the data')
+			}
+		});
+
+		$("#unique").click(function(){
+			var stats=analyze();
+			if(stats.obj && stats.obj.length){
+				stats.obj=unique(stats.obj);
+				$("#json").val(JSON.stringify(stats.obj, null, 2));
+				analyze();
+			}
+			else{
+				alert('couldn\'t parse the data')
+			}
+		});
+
+		$("#topk").click(function(){
+			var stats=analyze();
+			if(stats.obj && stats.obj.length){
+				stats.obj=topk(stats.obj);
+				$("#json").val(JSON.stringify(stats.obj, null, 2));
+				analyze();
+			}
+			else{
+				alert('couldn\'t parse the data')
+			}
+		});
+
+		$("#map").click(function(){
+			$("#mapit").toggle()
+		})
+
+		$("#runmap").click(function(){
+			var code=$("#code").val()
+			var stats=analyze();
+			if(stats.obj && stats.obj.length){
+				code='stats.obj.map(function(v,i){'+code+'})'
+					eval(code)
+					console.log(stats.obj)
+				$("#json").val(JSON.stringify(stats.obj, null, 2));
+			}
+			else{
+				alert('couldn\'t parse the data')
+			}
+		});
+		console.log('f')
 	}
+
+
 
 
 
@@ -248,18 +305,69 @@ function clearfield(){
 		}
 	}
 }
+
+ //remove duplicates from array
+ function unique(x) {
+   var newArray=new Array();
+    label:for(var i=0; i<x.length;i++ ){
+      for(var j=0; j<newArray.length;j++ ){
+          if(newArray[j]==x[i])
+          continue label;
+        }
+        newArray[newArray.length] = x[i];
+      }
+    return newArray;
+  }
+
+function topk(myArray){
+	var newArray = [];
+	var freq = {};
+	//Count Frequency of Occurances
+	var i=myArray.length-1;
+	for (var i;i>-1;i--)
+	{
+	  var value = myArray[i];
+	  freq[value]==null?freq[value]=1:freq[value]++;
+	}
+	//convert to sortable array
+	for (var value in freq)
+	{
+	  newArray.push(value);
+	}
+	return newArray.sort(function(a,b){return freq[b]-freq[a];}).map(function(v){return {value:v, count:freq[v]}});
+}
+
 </script>
 </head>
 <body>
 	<span id="fields"></span>
-	<span id="status"></span>
-	<span id="stats"></span>
-	<input id="selector" value="string"/>
-	<input id="click" type="button" value="pluck"/>
-	<input id="analyze" type="button" value="analyze"/>
-	<input id="reverse" type="button" value="reverse"/>
+
+		<!--<input id="selector" value="string"/>
+ <input id="click" type="button" value="pluck"/>
+	<input id="analyze" type="button" value="analyze"/> -->
+	<span id="buttons"></span>
 	<br/>
-	<textarea id="json" placeholder='json here' class="cooltextarea">[{"we":34, "eeeee":"pp"},{"we":34, "eeeee":"pp2"},{"we":334, "eeeee":"pp3"}]</textarea>
+
+<table style="width:80%; text-align:center;">
+	<tr>
+		<td id="length"></td>
+		<td id="dupes"></td>
+		<td></td>
+	</tr>
+</table>
+
+	<div id="mapit" style="color:grey; display:none;">
+		map(v, i){<br/>
+	<textarea id="code" style="width:400px; height:120px; border:1px solid grey; border-radius:5px; ">
+		return v+"yyyy"
+	</textarea>
+	}
+	<input id="runmap" type="button" value="run"/>
+</div>
+
+<div id="error" style="left:200px; color:grey; font-size:12px; font-family:Courier New;"></div>
+
+	<textarea id="json" placeholder='json here' class="cooltextarea">["lkjsdf","aaaa","bbbb","aaaa","mmmm"]</textarea>
 
 	<div id="results"></div>
 
